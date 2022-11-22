@@ -1,0 +1,58 @@
+from abc import ABC, abstractmethod
+
+import logging
+
+import numpy as np
+import numpy.typing as npt
+
+from timeit import default_timer as timer
+
+logger = logging.getLogger(f"eremore.{__name__}")
+logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
+
+
+class Exporter(ABC):
+    def export(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
+        logger.debug(f"Exporting with: {vars(self)}")
+        start = timer()
+        export_image = self._export(raw_image)
+        end = timer()
+        elapsed_time = end - start
+        logger.debug(f"Elapsed time: {elapsed_time}")
+        return export_image
+
+    @abstractmethod
+    def _export(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
+        pass
+
+
+class LinearExporter(Exporter):
+    def __init__(self, raw_min=None, raw_max=None, export_min=0, export_max=255):
+        self.name = "LinearExporter"
+        self.raw_min = raw_min
+        self.raw_max = raw_max
+        self.export_min = export_min
+        self.export_max = export_max
+
+    def _export(self, raw_image):
+        raw_image = raw_image.astype(np.float64)
+        raw_min = self.raw_min
+        raw_max = self.raw_max
+        export_min = self.export_min
+        export_max = self.export_max
+
+        if raw_min is None:
+            raw_min = np.min(raw_image)
+        if raw_max is None:
+            raw_max = np.max(raw_image)
+
+        raw_image = np.clip(raw_image, raw_min, raw_max)
+
+        raw_image -= raw_min
+        raw_image /= raw_max - raw_min
+        raw_image *= export_max - export_min
+        raw_image += export_min
+
+        raw_image = np.clip(raw_image, export_min, export_max)
+
+        return raw_image.astype(np.uint8)

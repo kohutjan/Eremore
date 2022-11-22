@@ -1,19 +1,34 @@
+import cv2
+
 import logging
 import argparse
 import sys
 import os
 
+
 from core.loader import SimpleRawPyLoader
+from export.exporter import LinearExporter
 from core.demosaicing import Demosaicing
 
-logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
-module_logger = logging.getLogger('eremore.console_app')
+logger = logging.getLogger(f"eremore.{__name__}")
+logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
 
 
 def parseargs():
     print(' '.join(sys.argv))
     parser = argparse.ArgumentParser()
-    parser.add_argument('--raw-image', required=True, type=str, help="Path to the RAW image file.")
+    # Input
+    parser.add_argument('--raw-image', required=True, type=str, help="Path to the RAW image.")
+
+    # Exporter
+    parser.add_argument('--raw-min', type=int)
+    parser.add_argument('--raw-max', type=int)
+    parser.add_argument('--export-min', default=0, type=int)
+    parser.add_argument('--export-max', default=255, type=int)
+
+    # Output
+    parser.add_argument('--export-image', required=True, type=str, help="Path to save the exported image.")
+
     args = parser.parse_args()
     return args
 
@@ -23,7 +38,12 @@ def main():
 
     simple_rawpy_loader = SimpleRawPyLoader()
     raw_image = simple_rawpy_loader.load(args.raw_image)
-    logging.info(f"INPUT SHAPE {raw_image.shape}")
+    logger.info(f"RAW image shape: {raw_image.shape}")
+    linear_exporter = LinearExporter(raw_min=args.raw_min, raw_max=args.raw_max,
+                                     export_min=args.export_min, export_max=args.export_max)
+    export_image = linear_exporter.export(raw_image)
+    logger.info(f"Exported image shape: {export_image.shape}")
+    cv2.imwrite(args.export_image, export_image)
 
 
 if __name__ == '__main__':
