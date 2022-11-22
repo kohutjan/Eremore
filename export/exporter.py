@@ -8,7 +8,7 @@ import numpy.typing as npt
 from timeit import default_timer as timer
 
 logger = logging.getLogger(f"eremore.{__name__}")
-logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
+#logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
 
 
 class Exporter(ABC):

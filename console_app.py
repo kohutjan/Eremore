@@ -11,8 +11,6 @@ from export.exporter import LinearExporter
 from core.demosaicing import Demosaicing
 
 logger = logging.getLogger(f"eremore.{__name__}")
-logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
-
 
 def parseargs():
     print(' '.join(sys.argv))
@@ -29,12 +27,16 @@ def parseargs():
     # Output
     parser.add_argument('--export-image', required=True, type=str, help="Path to save the exported image.")
 
+    parser.add_argument('--logging-level', default=logging.INFO)
+
     args = parser.parse_args()
     return args
 
 
 def main():
     args = parseargs()
+    logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=args.logging_level,
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
     simple_rawpy_loader = SimpleRawPyLoader()
     raw_image = simple_rawpy_loader.load(args.raw_image)
