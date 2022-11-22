@@ -34,7 +34,7 @@ class LinearExporter(Exporter):
         self.export_max = export_max
 
     def _export(self, raw_image):
-        raw_image = raw_image.astype(np.float64)
+        raw_image = raw_image.astype(np.float32)
         raw_min = self.raw_min
         raw_max = self.raw_max
         export_min = self.export_min
@@ -52,6 +52,6 @@ class LinearExporter(Exporter):
         raw_image *= export_max - export_min
         raw_image += export_min
 
-        raw_image = np.clip(raw_image, export_min, export_max)
+        raw_image = np.clip(raw_image, 0, 255)
 
         return raw_image.astype(np.uint8)
