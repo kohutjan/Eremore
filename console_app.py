@@ -12,6 +12,7 @@ from core.demosaicing import Demosaicing
 
 logger = logging.getLogger(f"eremore.{__name__}")
 
+
 def parseargs():
     print(' '.join(sys.argv))
     parser = argparse.ArgumentParser()
