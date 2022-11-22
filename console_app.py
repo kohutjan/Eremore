@@ -5,10 +5,10 @@ import argparse
 import sys
 import os
 
-
 from core.loader import SimpleRawPyLoader
+from edit.rotator import BasicRotator
 from export.exporter import LinearExporter
-from core.demosaicing import Demosaicing
+from core.demosaicer import BayerSplitter
 
 logger = logging.getLogger(f"eremore.{__name__}")
 
@@ -18,6 +18,12 @@ def parseargs():
     parser = argparse.ArgumentParser()
     # Input
     parser.add_argument('--raw-image', required=True, type=str, help="Path to the RAW image.")
+
+    # Rotator
+    parser.add_argument('--rotate-k', type=int)
+
+    # Demosaicer
+    parser.add_argument('--blue-loc', type=str)
 
     # Exporter
     parser.add_argument('--raw-min', type=int)
@@ -41,11 +47,23 @@ def main():
 
     simple_rawpy_loader = SimpleRawPyLoader()
     raw_image = simple_rawpy_loader.load(args.raw_image)
-    logger.info(f"RAW image shape: {raw_image.shape}")
+
+    if args.rotate_k is not None:
+        basic_rotator = BasicRotator()
+        raw_image = basic_rotator.rotate_k(raw_image, k=args.rotate_k)
+
+    if args.blue_loc is not None:
+        blue_loc = [int(x) for x in args.blue_loc.split(",")]
+        blue_loc = (blue_loc[0], blue_loc[1])
+        bayer_splitter = BayerSplitter(blue_loc)
+        raw_image = bayer_splitter.demosaice(raw_image)
+
     linear_exporter = LinearExporter(raw_min=args.raw_min, raw_max=args.raw_max,
                                      export_min=args.export_min, export_max=args.export_max)
+
     export_image = linear_exporter.export(raw_image)
-    logger.info(f"Exported image shape: {export_image.shape}")
+    if len(export_image.shape) == 3:
+        export_image = export_image[:, :, ::-1]
     cv2.imwrite(args.export_image, export_image)
 
 

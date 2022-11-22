@@ -12,7 +12,8 @@ logger = logging.getLogger(f"eremore.{__name__}")
 
 class Exporter(ABC):
     def export(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
-        logger.debug(f"Exporting with: {vars(self)}")
+        arguments = {'raw_image': raw_image.shape}
+        logger.debug(f"Exporting with: -> attributes: {vars(self)} | arguments: {arguments}")
         start = timer()
         export_image = self._export(raw_image)
         end = timer()
