@@ -7,13 +7,12 @@ import numpy as np
 import numpy.typing as npt
 from typing import Tuple
 
-from timeit import default_timer as timer
-
-logger = logging.getLogger(f"eremore.{__name__}")
+from helper.run_and_measure_time import run_and_measure_time
 
 
 class Demosaicer(ABC):
     def __init__(self, blue_loc: Tuple[int, int]):
+        self.logger = logging.getLogger(f"eremore.{__name__}")
         self.blue_loc = blue_loc
         if self.blue_loc == (0, 0):
             self.red_loc = (1, 1)
@@ -28,18 +27,16 @@ class Demosaicer(ABC):
             self.red_loc = (0, 0)
             self.green_x_loc = (1, 0)
         else:
-            logger.error(f"Wrong value of blue_loc: {blue_loc}")
+            self.logger.error(f"Wrong value of blue_loc: {blue_loc}")
             raise ValueError
 
     def demosaice(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
         arguments = {'raw_image': raw_image.shape}
-        logger.debug(f"Demosaicing with: -> attributes: {vars(self)} | arguments: {arguments}")
-        start = timer()
-        export_image = self._demosaice(raw_image)
-        end = timer()
-        elapsed_time = end - start
-        logger.debug(f"Elapsed time: {elapsed_time}")
-        return export_image
+        self.logger.debug(f"Demosaicing with: -> attributes: {vars(self)} | arguments: {arguments}")
+        out_raw_image, elapsed_time = run_and_measure_time(self._demosaice,
+                                                           {'raw_image': raw_image},
+                                                           logger=self.logger)
+        return out_raw_image
 
     def _demosaice(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
         height, width = raw_image.shape
@@ -56,15 +53,17 @@ class Demosaicer(ABC):
 class BayerSplitter(Demosaicer):
     def __init__(self, blue_loc):
         super().__init__(blue_loc)
+        self.logger = logging.getLogger(f"eremore.{__name__}.bayer_splitter")
         self.name = "BayerSplitter"
 
     def _demosaice(self, raw_image):
         return super()._demosaice(raw_image)
 
 
-class LinearDemosaicer(Demosaicer):
+class DemosaicerLinear(Demosaicer):
     def __init__(self, blue_loc):
         super().__init__(blue_loc)
+        self.logger = logging.getLogger(f"eremore.{__name__}.linear")
         self.name = "LinearDemosaicer"
 
     def _demosaice(self, raw_image):

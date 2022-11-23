@@ -5,21 +5,19 @@ import logging
 import numpy as np
 import numpy.typing as npt
 
-from timeit import default_timer as timer
-
-logger = logging.getLogger(f"eremore.{__name__}")
+from helper.run_and_measure_time import run_and_measure_time
 
 
 class Rotator(ABC):
+    def __init__(self):
+        self.logger = logging.getLogger(f"eremore.{__name__}")
 
     def rotate_k(self, image, k) -> npt.NDArray:
         arguments = {'k': k}
-        logger.debug(f"Rotating with: -> attributes: {vars(self)} | arguments: {arguments}")
-        start = timer()
-        image = self._rotate_k(image, k=k)
-        end = timer()
-        elapsed_time = end - start
-        logger.debug(f"Elapsed time: {elapsed_time}")
+        self.logger.debug(f"Rotating with: -> attributes: {vars(self)} | arguments: {arguments}")
+        image, elapsed_time = run_and_measure_time(self._rotate_k,
+                                                   {'image': image, 'k': k},
+                                                   logger=self.logger)
         return image
 
     def rotate_right(self, image) -> npt.NDArray:
@@ -33,9 +31,11 @@ class Rotator(ABC):
         pass
 
 
-class BasicRotator(Rotator):
+class RotatorBasic(Rotator):
     def __init__(self):
-        self.name = "BasicRotator"
+        super().__init__()
+        self.logger = logging.getLogger(f"eremore.{__name__}.basic")
+        self.name = "RotatorBasic"
 
     def _rotate_k(self, image, k):
         return np.rot90(image, k)

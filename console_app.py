@@ -5,9 +5,9 @@ import argparse
 import sys
 import os
 
-from core.loader import SimpleRawPyLoader
-from edit.rotator import BasicRotator
-from export.exporter import LinearExporter
+from core.loader import LoaderSimplePyRaw
+from edit.rotator import RotatorBasic
+from export.exporter import ExporterLinear, ExporterLog, ExporterGammaCorrection
 from core.demosaicer import BayerSplitter
 
 logger = logging.getLogger(f"eremore.{__name__}")
@@ -19,17 +19,20 @@ def parseargs():
     # Input
     parser.add_argument('--raw-image', required=True, type=str, help="Path to the RAW image.")
 
-    # Rotator
-    parser.add_argument('--rotate-k', type=int)
-
     # Demosaicer
     parser.add_argument('--blue-loc', type=str)
 
     # Exporter
-    parser.add_argument('--raw-min', type=int)
-    parser.add_argument('--raw-max', type=int)
+    parser.add_argument('--exporter', default='log', choices=['linear', 'log', 'gamma_correction'])
+    parser.add_argument('--raw-min', default=0, type=int)
+    parser.add_argument('--raw-max', default=2**14-1, type=int)
     parser.add_argument('--export-min', default=0, type=int)
     parser.add_argument('--export-max', default=255, type=int)
+    # Exporter gamma_correction
+    parser.add_argument('--gamma', default=1, type=float)
+
+    # Rotator
+    parser.add_argument('--rotate-k', type=int)
 
     # Output
     parser.add_argument('--export-image', required=True, type=str, help="Path to save the exported image.")
@@ -45,12 +48,8 @@ def main():
     logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=args.logging_level,
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    simple_rawpy_loader = SimpleRawPyLoader()
-    raw_image = simple_rawpy_loader.load(args.raw_image)
-
-    if args.rotate_k is not None:
-        basic_rotator = BasicRotator()
-        raw_image = basic_rotator.rotate_k(raw_image, k=args.rotate_k)
+    loader = LoaderSimplePyRaw()
+    raw_image = loader.load(args.raw_image)
 
     if args.blue_loc is not None:
         blue_loc = [int(x) for x in args.blue_loc.split(",")]
@@ -58,10 +57,26 @@ def main():
         bayer_splitter = BayerSplitter(blue_loc)
         raw_image = bayer_splitter.demosaice(raw_image)
 
-    linear_exporter = LinearExporter(raw_min=args.raw_min, raw_max=args.raw_max,
-                                     export_min=args.export_min, export_max=args.export_max)
+    if args.exporter == 'linear':
+        exporter = ExporterLinear(raw_min=args.raw_min, raw_max=args.raw_max,
+                                  export_min=args.export_min, export_max=args.export_max)
+    elif args.exporter == 'log':
+        exporter = ExporterLog(raw_min=args.raw_min, raw_max=args.raw_max,
+                               export_min=args.export_min, export_max=args.export_max)
+    elif args.exporter == 'gamma_correction':
+        exporter = ExporterGammaCorrection(raw_min=args.raw_min, raw_max=args.raw_max,
+                                           export_min=args.export_min, export_max=args.export_max,
+                                           gamma=args.gamma)
+    else:
+        logger.error(f"Exporter {args.exporter} does not exists.")
+        raise ValueError
 
-    export_image = linear_exporter.export(raw_image)
+    export_image = exporter.export(raw_image)
+
+    if args.rotate_k is not None:
+        rotator = RotatorBasic()
+        export_image = rotator.rotate_k(export_image, k=args.rotate_k)
+
     if len(export_image.shape) == 3:
         export_image = export_image[:, :, ::-1]
     cv2.imwrite(args.export_image, export_image)
