@@ -53,8 +53,7 @@ class ExporterLinear(Exporter):
 
     def _export(self, raw_image):
         raw_image -= self.raw_min
-        scale = (self.export_max - self.export_min) / (self.raw_max - self.raw_min)
-        raw_image *= scale
+        raw_image *= (self.export_max - self.export_min) / (self.raw_max - self.raw_min)
         raw_image += self.export_min
         return raw_image
 
@@ -68,9 +67,7 @@ class ExporterLog(Exporter):
     def _export(self, raw_image):
         raw_image -= self.raw_min + 1
         raw_image = np.log(raw_image)
-        raw_max_log = np.log(self.raw_max - self.raw_min + 1)
-        scale = (self.export_max - self.export_min) / raw_max_log
-        raw_image *= scale
+        raw_image *= (self.export_max - self.export_min) / np.log(self.raw_max - self.raw_min + 1)
         raw_image += self.export_min
         return raw_image
 
