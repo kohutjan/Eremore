@@ -18,7 +18,7 @@ class Exporter(ABC):
     def export(self, image: Image, path_to_export_image: str):
         attributes = get_attributes(self)
         arguments = {'image': image, 'path_to_export_image': path_to_export_image}
-        self.logger.debug(f"Exporting with: -> attributes: {attributes} | arguments: {arguments}")
+        self.logger.debug(f"Exporting with -> attributes: {attributes} | arguments: {arguments}")
         run_and_measure_time(self._export, arguments, logger=self.logger)
 
     @abstractmethod

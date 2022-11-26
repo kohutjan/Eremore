@@ -27,7 +27,7 @@ class ToneMapper(ABC):
     def tone_map(self, image: Image):
         attributes = get_attributes(self)
         arguments = {'image': image}
-        self.logger.debug(f"Tone mapping with: -> attributes: {attributes} | arguments: {arguments}")
+        self.logger.debug(f"Tone mapping with -> attributes: {attributes} | arguments: {arguments}")
         run_and_measure_time(self._tone_map_wrapper, arguments, logger=self.logger)
 
     def _tone_map_wrapper(self, image: Image):

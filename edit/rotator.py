@@ -17,7 +17,7 @@ class Rotator(ABC):
     def rotate_k(self, image: Image, k: int):
         attributes = get_attributes(self)
         arguments = {'image': image, 'k': k}
-        self.logger.debug(f"Rotating with: -> attributes: {attributes} | arguments: {arguments}")
+        self.logger.debug(f"Rotating with -> attributes: {attributes} | arguments: {arguments}")
         run_and_measure_time(self._rotate_k, arguments, logger=self.logger)
 
     @abstractmethod

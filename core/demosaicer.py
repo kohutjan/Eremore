@@ -36,13 +36,13 @@ class Demosaicer(ABC):
     def demosaice(self, image: Image):
         attributes = get_attributes(self)
         arguments = {'image': image}
-        self.logger.debug(f"Demosaicing with: -> attributes: {attributes} | arguments: {arguments}")
+        self.logger.debug(f"Demosaicing with -> attributes: {attributes} | arguments: {arguments}")
         run_and_measure_time(self._demosaice, arguments, logger=self.logger)
 
     def _demosaice(self, image: Image):
         input_raw_image = image.raw_image
         height, width = input_raw_image.shape
-        out_raw_image = np.zeros((height, width, 3))
+        out_raw_image = np.zeros((height, width, 3), dtype=np.float32)
 
         for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
             out_raw_image[color_loc[0]::2, color_loc[1]::2, color_c] = input_raw_image[color_loc[0]::2,
@@ -50,6 +50,7 @@ class Demosaicer(ABC):
         for i in range(2):
             out_raw_image[i::2, self.green_x_loc[i]::2, 1] = input_raw_image[i::2,
                                                                              self.green_x_loc[i]::2]
+
         image.raw_image = out_raw_image
 
 

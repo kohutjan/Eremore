@@ -9,6 +9,7 @@ import pprint
 from core.loader import LoaderRawPy
 from core.demosaicer import BayerSplitter, DemosaicerCopy
 from core.tone_mapper import ToneMapperLinear, ToneMapperLog, ToneMapperGammaCorrection
+from edit.white_balancer import WhiteBalancerWhitePatch, WhiteBalancerGrayWorld
 from edit.rotator import RotatorNumPy90
 from core.exporter import ExporterOpenCV
 
@@ -36,6 +37,11 @@ def parseargs():
     group_tone_mapper.add_argument('--output-white-level', default=255, type=int)
     group_tone_mapper_gamma_correction = parser.add_argument_group('ToneMapperGammaCorrection')
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
+
+    group_white_balancer = parser.add_argument_group('WhiteBalancer')
+    group_white_balancer.add_argument('--white-balancer', choices=['white_patch', 'gray_world'])
+    group_white_balancer_white_patch = parser.add_argument_group('WhiteBalancerWhitePatch')
+    group_white_balancer_white_patch.add_argument('--percentile', default=97, type=float)
 
     group_rotator = parser.add_argument_group('Rotator')
     group_rotator.add_argument('--rotator', choices=['numpy90'])
@@ -110,6 +116,20 @@ def main():
             raise ValueError
 
         tone_mapper.tone_map(image)
+    # ##################################################################################################################
+
+    # WhiteBalancer
+    # ##################################################################################################################
+    if args.white_balancer is not None:
+        if args.white_balancer == 'white_patch':
+            white_balancer = WhiteBalancerWhitePatch(args.percentile)
+        elif args.white_balancer == 'gray_world':
+            white_balancer = WhiteBalancerGrayWorld()
+        else:
+            logger.error(f"Rotator {args.white_balancer} does not exists.")
+            raise ValueError
+
+        white_balancer.white_balance(image)
     # ##################################################################################################################
 
     # Rotator
