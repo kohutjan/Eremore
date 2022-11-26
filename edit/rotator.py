@@ -3,39 +3,39 @@ from abc import ABC, abstractmethod
 import logging
 
 import numpy as np
-import numpy.typing as npt
 
+from helper.get_attributes import get_attributes
 from helper.run_and_measure_time import run_and_measure_time
+
+from core.image import Image
 
 
 class Rotator(ABC):
     def __init__(self):
         self.logger = logging.getLogger(f"eremore.{__name__}")
 
-    def rotate_k(self, image, k) -> npt.NDArray:
-        arguments = {'k': k}
-        self.logger.debug(f"Rotating with: -> attributes: {vars(self)} | arguments: {arguments}")
-        image, elapsed_time = run_and_measure_time(self._rotate_k,
-                                                   {'image': image, 'k': k},
-                                                   logger=self.logger)
-        return image
-
-    def rotate_right(self, image) -> npt.NDArray:
-        return self.rotate_k(image, 3)
-
-    def rotate_left(self, image) -> npt.NDArray:
-        return self.rotate_k(image, 1)
+    def rotate_k(self, image: Image, k: int):
+        attributes = get_attributes(self)
+        arguments = {'image': image, 'k': k}
+        self.logger.debug(f"Rotating with: -> attributes: {attributes} | arguments: {arguments}")
+        run_and_measure_time(self._rotate_k, arguments, logger=self.logger)
 
     @abstractmethod
-    def _rotate_k(self, image, k) -> npt.NDArray:
+    def _rotate_k(self, image, k):
         pass
 
+    def rotate_right(self, image):
+        self.rotate_k(image.raw_image, 3)
 
-class RotatorBasic(Rotator):
+    def rotate_left(self, image):
+        self.rotate_k(image.raw_image, 1)
+
+
+class RotatorNumPy90(Rotator):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(f"eremore.{__name__}.basic")
         self.name = "RotatorBasic"
 
     def _rotate_k(self, image, k):
-        return np.rot90(image, k)
+        image.raw_image = np.rot90(image.raw_image, k)

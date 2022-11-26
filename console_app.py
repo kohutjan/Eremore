@@ -3,12 +3,14 @@ import cv2
 import logging
 import argparse
 import sys
-import os
+import json
+import pprint
 
-from core.loader import LoaderSimplePyRaw
-from edit.rotator import RotatorBasic
-from export.exporter import ExporterLinear, ExporterLog, ExporterGammaCorrection
-from core.demosaicer import BayerSplitter
+from core.loader import LoaderRawPy
+from core.demosaicer import BayerSplitter, DemosaicerCopy
+from core.tone_mapper import ToneMapperLinear, ToneMapperLog, ToneMapperGammaCorrection
+from edit.rotator import RotatorNumPy90
+from core.exporter import ExporterOpenCV
 
 logger = logging.getLogger(f"eremore.{__name__}")
 
@@ -16,26 +18,31 @@ logger = logging.getLogger(f"eremore.{__name__}")
 def parseargs():
     print(' '.join(sys.argv))
     parser = argparse.ArgumentParser()
-    # Input
-    parser.add_argument('--raw-image', required=True, type=str, help="Path to the RAW image.")
 
-    # Demosaicer
-    parser.add_argument('--blue-loc', type=str)
+    group_loader = parser.add_argument_group('Loader')
+    group_loader.add_argument('--loader', default='rawpy', choices=['rawpy'])
+    group_loader.add_argument('--path-to-raw-image', required=True, type=str, help="Path to the RAW image.")
 
-    # Exporter
-    parser.add_argument('--exporter', default='log', choices=['linear', 'log', 'gamma_correction'])
-    parser.add_argument('--raw-min', default=0, type=int)
-    parser.add_argument('--raw-max', default=2**14-1, type=int)
-    parser.add_argument('--export-min', default=0, type=int)
-    parser.add_argument('--export-max', default=255, type=int)
-    # Exporter gamma_correction
-    parser.add_argument('--gamma', default=1, type=float)
+    group_demosaicer = parser.add_argument_group('Demosaicer')
+    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy'])
+    group_demosaicer.add_argument('--blue-loc', default='1,1', choices=['00', '01', '10', '11'])
 
-    # Rotator
-    parser.add_argument('--rotate-k', type=int)
+    group_tone_mapper = parser.add_argument_group('ToneMapper')
+    group_tone_mapper.add_argument('--tone-mapper', choices=['linear', 'log', 'gamma_correction'])
+    group_tone_mapper.add_argument('--input-black', default=0, type=int)
+    group_tone_mapper.add_argument('--input-white', default=2**14-1, type=int)
+    group_tone_mapper.add_argument('--output-black', default=0, type=int)
+    group_tone_mapper.add_argument('--output-white', default=255, type=int)
+    group_tone_mapper_gamma_correction = parser.add_argument_group('ToneMapperGammaCorrection')
+    group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
 
-    # Output
-    parser.add_argument('--export-image', required=True, type=str, help="Path to save the exported image.")
+    group_rotator = parser.add_argument_group('Rotator')
+    group_rotator.add_argument('--rotator', choices=['numpy90'])
+    group_rotator.add_argument('--k', type=int)
+
+    group_exporter = parser.add_argument_group('Exporter')
+    group_exporter.add_argument('--exporter', default='open_cv', choices=['open_cv'])
+    group_exporter.add_argument('--path-to-export-image', required=True, type=str, help="Path to save the exported image.")
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -45,41 +52,78 @@ def parseargs():
 
 def main():
     args = parseargs()
-    logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=args.logging_level,
-                        datefmt='%Y-%m-%d %H:%M:%S')
+    #logging.basicConfig(format='%(name)s %(asctime)s %(levelname)-8s %(message)s', level=args.logging_level,
+    #                    datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(format='%(name)s %(levelname)-8s %(message)s', level=args.logging_level)
 
-    loader = LoaderSimplePyRaw()
-    raw_image = loader.load(args.raw_image)
+    # Loader
+    # ##################################################################################################################
+    if args.loader == 'rawpy':
+        loader = LoaderRawPy()
+    else:
+        logger.error(f"Loader {args.loader} does not exist.")
+        raise ValueError
 
-    if args.blue_loc is not None:
-        blue_loc = [int(x) for x in args.blue_loc.split(",")]
-        blue_loc = (blue_loc[0], blue_loc[1])
-        bayer_splitter = BayerSplitter(blue_loc)
-        raw_image = bayer_splitter.demosaice(raw_image)
+    image = loader.load(path_to_raw_image=args.path_to_raw_image)
+    # ##################################################################################################################
 
-    if args.exporter == 'linear':
-        exporter = ExporterLinear(raw_min=args.raw_min, raw_max=args.raw_max,
-                                  export_min=args.export_min, export_max=args.export_max)
-    elif args.exporter == 'log':
-        exporter = ExporterLog(raw_min=args.raw_min, raw_max=args.raw_max,
-                               export_min=args.export_min, export_max=args.export_max)
-    elif args.exporter == 'gamma_correction':
-        exporter = ExporterGammaCorrection(raw_min=args.raw_min, raw_max=args.raw_max,
-                                           export_min=args.export_min, export_max=args.export_max,
-                                           gamma=args.gamma)
+    # Demosaicer
+    # ##################################################################################################################
+    if args.demosaicer is not None:
+        blue_loc = (int(args.blue_loc[0]), int(args.blue_loc[1]))
+        if args.demosaicer == 'bayer_splitter':
+            demosaicer = BayerSplitter(blue_loc=blue_loc)
+        elif args.demosaicer == 'copy':
+            demosaicer = DemosaicerCopy(blue_loc=blue_loc)
+        else:
+            logger.error(f"Demosaicer {args.demosaicer} does not exist.")
+            raise ValueError
+
+        demosaicer.demosaice(image)
+    # ##################################################################################################################
+
+    # ToneMapper
+    # ##################################################################################################################
+    if args.tone_mapper is not None:
+        if args.tone_mapper == 'linear':
+            tone_mapper = ToneMapperLinear(input_black=args.input_black, input_white=args.input_white,
+                                           output_black=args.output_black, output_white=args.output_white)
+        elif args.tone_mapper == 'log':
+            tone_mapper = ToneMapperLog(input_black=args.input_black, input_white=args.input_white,
+                                        output_black=args.output_black, output_white=args.output_white)
+        elif args.tone_mapper == 'gamma_correction':
+            tone_mapper = ToneMapperGammaCorrection(input_black=args.input_black, input_white=args.input_white,
+                                                    output_black=args.output_black, output_white=args.output_white,
+                                                    gamma=args.gamma)
+        else:
+            logger.error(f"ToneMapper {args.tone_mapper} does not exists.")
+            raise ValueError
+
+        tone_mapper.tone_map(image)
+    # ##################################################################################################################
+
+    # Rotator
+    # ##################################################################################################################
+    if args.rotator is not None:
+        if args.rotator == 'numpy90':
+            rotator = RotatorNumPy90()
+        else:
+            logger.error(f"Rotator {args.rotator} does not exists.")
+            raise ValueError
+
+        rotator.rotate_k(image, k=args.k)
+    # ##################################################################################################################
+
+    # Exporter
+    # ##################################################################################################################
+    if args.exporter == 'open_cv':
+        exporter = ExporterOpenCV()
     else:
         logger.error(f"Exporter {args.exporter} does not exists.")
         raise ValueError
 
-    export_image = exporter.export(raw_image)
-
-    if args.rotate_k is not None:
-        rotator = RotatorBasic()
-        export_image = rotator.rotate_k(export_image, k=args.rotate_k)
-
-    if len(export_image.shape) == 3:
-        export_image = export_image[:, :, ::-1]
-    cv2.imwrite(args.export_image, export_image)
+    exporter.export(image, path_to_export_image=args.path_to_export_image)
+    # ##################################################################################################################
 
 
 if __name__ == '__main__':

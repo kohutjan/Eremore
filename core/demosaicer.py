@@ -7,7 +7,10 @@ import numpy as np
 import numpy.typing as npt
 from typing import Tuple
 
+from helper.get_attributes import get_attributes
 from helper.run_and_measure_time import run_and_measure_time
+
+from core.image import Image
 
 
 class Demosaicer(ABC):
@@ -30,24 +33,24 @@ class Demosaicer(ABC):
             self.logger.error(f"Wrong value of blue_loc: {blue_loc}")
             raise ValueError
 
-    def demosaice(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
-        arguments = {'raw_image': raw_image.shape}
-        self.logger.debug(f"Demosaicing with: -> attributes: {vars(self)} | arguments: {arguments}")
-        out_raw_image, elapsed_time = run_and_measure_time(self._demosaice,
-                                                           {'raw_image': raw_image},
-                                                           logger=self.logger)
-        return out_raw_image
+    def demosaice(self, image: Image):
+        attributes = get_attributes(self)
+        arguments = {'image': image}
+        self.logger.debug(f"Demosaicing with: -> attributes: {attributes} | arguments: {arguments}")
+        run_and_measure_time(self._demosaice, arguments, logger=self.logger)
 
-    def _demosaice(self, raw_image: npt.NDArray[np.uint16]) -> npt.NDArray[np.uint8]:
-        height, width = raw_image.shape
+    def _demosaice(self, image: Image):
+        input_raw_image = image.raw_image
+        height, width = input_raw_image.shape
         out_raw_image = np.zeros((height, width, 3))
 
-        out_raw_image[self.red_loc[0]::2, self.red_loc[1]::2, 0] = raw_image[self.red_loc[0]::2, self.red_loc[1]::2]
+        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+            out_raw_image[color_loc[0]::2, color_loc[1]::2, color_c] = input_raw_image[color_loc[0]::2,
+                                                                                       color_loc[1]::2]
         for i in range(2):
-            out_raw_image[i::2, self.green_x_loc[i]::2, 1] = raw_image[i::2, self.green_x_loc[i]::2]
-        out_raw_image[self.blue_loc[0]::2, self.blue_loc[1]::2, 2] = raw_image[self.blue_loc[0]::2, self.blue_loc[1]::2]
-
-        return out_raw_image
+            out_raw_image[i::2, self.green_x_loc[i]::2, 1] = input_raw_image[i::2,
+                                                                             self.green_x_loc[i]::2]
+        image.raw_image = out_raw_image
 
 
 class BayerSplitter(Demosaicer):
@@ -56,18 +59,34 @@ class BayerSplitter(Demosaicer):
         self.logger = logging.getLogger(f"eremore.{__name__}.bayer_splitter")
         self.name = "BayerSplitter"
 
-    def _demosaice(self, raw_image):
-        return super()._demosaice(raw_image)
+    def _demosaice(self, image):
+        super()._demosaice(image)
+
+
+class DemosaicerCopy(Demosaicer):
+    def __init__(self, blue_loc):
+        super().__init__(blue_loc)
+        self.logger = logging.getLogger(f"eremore.{__name__}.copy")
+        self.name = "DemosaicerCopy"
+
+    def _demosaice(self, image):
+        super()._demosaice(image)
+        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+            image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = image.raw_image[color_loc[0]::2, color_loc[1]::2, color_c]
+            image.raw_image[abs(color_loc[0] - 1)::2, :, color_c] = image.raw_image[color_loc[0]::2, :, color_c]
+
+        for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
+            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = image.raw_image[green_y_loc::2, green_x_loc::2, 1]
 
 
 class DemosaicerLinear(Demosaicer):
     def __init__(self, blue_loc):
         super().__init__(blue_loc)
         self.logger = logging.getLogger(f"eremore.{__name__}.linear")
-        self.name = "LinearDemosaicer"
+        self.name = "DemosaicerLinear"
 
-    def _demosaice(self, raw_image):
-        raw_image = super()._demosaice(raw_image)
+    def _demosaice(self, image):
+        super()._demosaice(image)
         #raw_image.astype(np.float32)
         #red_kernel = np.array([[0.5, 0, 0.5]])
         #green_kernel = np.array([[0.0, 0.5, 0.0],
@@ -77,5 +96,4 @@ class DemosaicerLinear(Demosaicer):
         #raw_image[:, :, 0] = scipy.signal.convolve2d(raw_image[:, :, 0], kernel=red_kernel)
         #raw_image[:, :, 1] = scipy.signal.convolve2d(raw_image[:, :, 1], kernel=green_kernel)
         #raw_image[:, :, 2] = scipy.signal.convolve2d(raw_image[:, :, 2], kernel=blue_kernel)
-        return raw_image
 
