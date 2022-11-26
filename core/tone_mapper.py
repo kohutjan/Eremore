@@ -12,12 +12,17 @@ from core.image import Image
 
 
 class ToneMapper(ABC):
-    def __init__(self, input_black: int, input_white: int, output_black: int, output_white: int):
+    def __init__(self,
+                 input_black_level_correction: int,
+                 input_black_level: int, input_white_level: int,
+                 output_black_level: int, output_white_level: int,
+                 ):
         self.logger = logging.getLogger(f"eremore.{__name__}")
-        self.input_black = input_black
-        self.input_white = input_white
-        self.output_black = output_black
-        self.output_white = output_white
+        self.input_black_level_correction = input_black_level_correction
+        self.input_black_level = input_black_level
+        self.input_white_level = input_white_level
+        self.output_black_level = output_black_level
+        self.output_white_level = output_white_level
 
     def tone_map(self, image: Image):
         attributes = get_attributes(self)
@@ -30,51 +35,68 @@ class ToneMapper(ABC):
         self._tone_map(image)
 
     def _tone_map_pre_process(self, image: Image):
-        image.raw_image = np.clip(image.raw_image, self.input_black, self.input_white)
+        image.raw_image -= self.input_black_level_correction
+        image.raw_image = np.clip(image.raw_image, self.input_black_level, self.input_white_level)
 
     @abstractmethod
     def _tone_map(self, image: Image):
         pass
 
     def _tone_map_post_process(self, image: Image):
-        image.raw_image = np.clip(image.raw_image, self.output_black, self.output_white)
+        image.raw_image = np.clip(image.raw_image, self.output_black_level, self.output_white_level)
 
 
 class ToneMapperLinear(ToneMapper):
-    def __init__(self, input_black=0, input_white=2**14-1, output_black=0, output_white=255):
-        super().__init__(input_black, input_white, output_black, output_white)
+    def __init__(self,
+                 input_black_level_correction,
+                 input_black_level, input_white_level,
+                 output_black_level, output_white_level):
+        super().__init__(input_black_level_correction,
+                         input_black_level, input_white_level,
+                         output_black_level, output_white_level)
         self.logger = logging.getLogger(f"eremore.{__name__}.linear")
         self.name = "ToneMapperLinear"
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black
-        image.raw_image *= (self.output_white - self.output_black) / (self.input_white - self.input_black)
-        image.raw_image += self.output_black
+        image.raw_image -= self.input_black_level
+        image.raw_image *= (self.output_white_level - self.output_black_level) / (self.input_white_level - self.input_black_level)
+        image.raw_image += self.output_black_level
 
 
 class ToneMapperLog(ToneMapper):
-    def __init__(self, input_black=0, input_white=2**14-1, output_black=0, output_white=255):
-        super().__init__(input_black, input_white, output_black, output_white)
+    def __init__(self,
+                 input_black_level_correction,
+                 input_black_level, input_white_level,
+                 output_black_level, output_white_level):
+        super().__init__(input_black_level_correction,
+                         input_black_level, input_white_level,
+                         output_black_level, output_white_level)
         self.logger = logging.getLogger(f"eremore.{__name__}.log")
         self.name = "ToneMapperLog"
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black + 1
+        image.raw_image -= self.input_black_level + 1
         image.raw_image = np.log(image.raw_image)
-        image.raw_image *= (self.output_white - self.output_black) / np.log(self.input_white - self.input_black + 1)
-        image.raw_image += self.output_black
+        image.raw_image *= (self.output_white_level - self.output_black_level) / np.log(self.input_white_level - self.input_black_level + 1)
+        image.raw_image += self.output_black_level
 
 
 class ToneMapperGammaCorrection(ToneMapper):
-    def __init__(self, input_black=0, input_white=2**14-1, output_black=0, output_white=255, gamma=1):
-        super().__init__(input_black, input_white, output_black, output_white)
+    def __init__(self,
+                 input_black_level_correction,
+                 input_black_level, input_white_level,
+                 output_black_level, output_white_level,
+                 gamma):
+        super().__init__(input_black_level_correction,
+                         input_black_level, input_white_level,
+                         output_black_level, output_white_level)
         self.logger = logging.getLogger(f"eremore.{__name__}.gamma_correction")
         self.name = "ToneMapperGammaCorrection"
         self.gamma = gamma
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black
-        image.raw_image /= self.input_white - self.input_black
+        image.raw_image -= self.input_black_level
+        image.raw_image /= self.input_white_level - self.input_black_level
         image.raw_image **= self.gamma
-        image.raw_image *= self.output_white - self.output_black
-        image.raw_image += self.output_black
+        image.raw_image *= self.output_white_level - self.output_black_level
+        image.raw_image += self.output_black_level

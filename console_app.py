@@ -29,10 +29,11 @@ def parseargs():
 
     group_tone_mapper = parser.add_argument_group('ToneMapper')
     group_tone_mapper.add_argument('--tone-mapper', choices=['linear', 'log', 'gamma_correction'])
-    group_tone_mapper.add_argument('--input-black', default=0, type=int)
-    group_tone_mapper.add_argument('--input-white', default=2**14-1, type=int)
-    group_tone_mapper.add_argument('--output-black', default=0, type=int)
-    group_tone_mapper.add_argument('--output-white', default=255, type=int)
+    group_tone_mapper.add_argument('--input-black-level-correction', default=0, type=int)
+    group_tone_mapper.add_argument('--input-black-level', default=0, type=int)
+    group_tone_mapper.add_argument('--input-white-level', default=2**14-1, type=int)
+    group_tone_mapper.add_argument('--output-black-level', default=0, type=int)
+    group_tone_mapper.add_argument('--output-white-level', default=255, type=int)
     group_tone_mapper_gamma_correction = parser.add_argument_group('ToneMapperGammaCorrection')
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
 
@@ -86,14 +87,23 @@ def main():
     # ##################################################################################################################
     if args.tone_mapper is not None:
         if args.tone_mapper == 'linear':
-            tone_mapper = ToneMapperLinear(input_black=args.input_black, input_white=args.input_white,
-                                           output_black=args.output_black, output_white=args.output_white)
+            tone_mapper = ToneMapperLinear(input_black_level_correction=args.input_black_level_correction,
+                                           input_black_level=args.input_black_level,
+                                           input_white_level=args.input_white_level,
+                                           output_black_level=args.output_black_level,
+                                           output_white_level=args.output_white_level)
         elif args.tone_mapper == 'log':
-            tone_mapper = ToneMapperLog(input_black=args.input_black, input_white=args.input_white,
-                                        output_black=args.output_black, output_white=args.output_white)
+            tone_mapper = ToneMapperLog(input_black_level_correction=args.input_black_level_correction,
+                                        input_black_level=args.input_black_level,
+                                        input_white_level=args.input_white_level,
+                                        output_black_level=args.output_black_level,
+                                        output_white_level=args.output_white_level)
         elif args.tone_mapper == 'gamma_correction':
-            tone_mapper = ToneMapperGammaCorrection(input_black=args.input_black, input_white=args.input_white,
-                                                    output_black=args.output_black, output_white=args.output_white,
+            tone_mapper = ToneMapperGammaCorrection(input_black_level_correction=args.input_black_level_correction,
+                                                    input_black_level=args.input_black_level,
+                                                    input_white_level=args.input_white_level,
+                                                    output_black_level=args.output_black_level,
+                                                    output_white_level=args.output_white_level,
                                                     gamma=args.gamma)
         else:
             logger.error(f"ToneMapper {args.tone_mapper} does not exists.")
