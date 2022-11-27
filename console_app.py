@@ -9,7 +9,7 @@ import pprint
 from core.loader import LoaderRawPy
 from core.demosaicer import BayerSplitter, DemosaicerCopy, DemosaicerLinear
 from core.tone_mapper import ToneMapperLinear, ToneMapperLog, ToneMapperGammaCorrection
-from edit.white_balancer import WhiteBalancerWhitePatch, WhiteBalancerGrayWorld
+from edit.white_balancer import WhiteBalancerCamera, WhiteBalancerWhitePatch, WhiteBalancerGrayWorld
 from edit.rotator import RotatorNumPy90
 from core.exporter import ExporterOpenCV
 
@@ -39,7 +39,7 @@ def parseargs():
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
 
     group_white_balancer = parser.add_argument_group('WhiteBalancer')
-    group_white_balancer.add_argument('--white-balancer', choices=['white_patch', 'gray_world'])
+    group_white_balancer.add_argument('--white-balancer', choices=['camera', 'white_patch', 'gray_world'])
     group_white_balancer_white_patch = parser.add_argument_group('WhiteBalancerWhitePatch')
     group_white_balancer_white_patch.add_argument('--percentile', default=97, type=float)
 
@@ -123,7 +123,9 @@ def main():
     # WhiteBalancer
     # ##################################################################################################################
     if args.white_balancer is not None:
-        if args.white_balancer == 'white_patch':
+        if args.white_balancer == 'camera':
+            white_balancer = WhiteBalancerCamera()
+        elif args.white_balancer == 'white_patch':
             white_balancer = WhiteBalancerWhitePatch(args.percentile)
         elif args.white_balancer == 'gray_world':
             white_balancer = WhiteBalancerGrayWorld()

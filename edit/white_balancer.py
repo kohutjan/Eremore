@@ -22,14 +22,27 @@ class WhiteBalancer(ABC):
 
     def _white_balance(self, image: Image):
         scales = self._get_color_scales(image)
-        red_scale, green_scale, blue_scale = (scales * 3) / np.sum(scales)
-        self.logger.debug(f"Estimated color scales - > {red_scale, green_scale, blue_scale}")
-        for color_c, color_scale in enumerate((red_scale, green_scale, blue_scale)):
-            image.raw_image[:, :, color_c] *= color_scale
+        scales = (scales * 3) / np.sum(scales)
+        self.logger.debug(f"Estimated color scales - > {scales}")
+        if np.all(scales == 1):
+            return
+        image.raw_image *= np.expand_dims(scales, axis=(0, 1))
 
     @abstractmethod
     def _get_color_scales(self, image: Image):
         pass
+
+
+class WhiteBalancerCamera(WhiteBalancer):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(f"eremore.{__name__}.camera")
+
+    def _get_color_scales(self, image):
+        if image.camera_white_balance is None or len(image.camera_white_balance) != 3:
+            self.logger.warning(f"No camera white balance could be read from the raw image, doing nothing.")
+            return np.full(3, 1.0)
+        return image.camera_white_balance
 
 
 class WhiteBalancerWhitePatch(WhiteBalancer):

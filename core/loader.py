@@ -36,5 +36,6 @@ class LoaderRawPy(Loader):
     def _load(self, path_to_raw_image):
         with rawpy.imread(path_to_raw_image) as rawpy_loader:
             raw_image = rawpy_loader.raw_image.copy()
-        image = Image(raw_image.astype(np.float32))
+            image = Image(raw_image.astype(np.float32),
+                          camera_white_balance=np.asarray(rawpy_loader.camera_whitebalance[:3], dtype=np.float32))
         return image

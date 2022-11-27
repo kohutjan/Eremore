@@ -32,18 +32,27 @@ class ToneMapper(ABC):
 
     def _tone_map_wrapper(self, image: Image):
         self._tone_map_pre_process(image)
-        self._tone_map(image)
+        self._tone_map(image.raw_image)
+        self._tone_map_post_process(image)
+
+        self._tone_map_camera_white_balance(image)
 
     def _tone_map_pre_process(self, image: Image):
         image.raw_image -= self.input_black_level_correction
         image.raw_image = np.clip(image.raw_image, self.input_black_level, self.input_white_level)
 
     @abstractmethod
-    def _tone_map(self, image: Image):
+    def _tone_map(self, image: npt.NDArray):
         pass
 
     def _tone_map_post_process(self, image: Image):
         image.raw_image = np.clip(image.raw_image, self.output_black_level, self.output_white_level)
+
+    def _tone_map_camera_white_balance(self, image: Image):
+        if image.camera_white_balance is None or len(image.camera_white_balance) != 3:
+            return
+        image.camera_white_balance -= self.input_black_level_correction
+        self._tone_map(image.camera_white_balance)
 
 
 class ToneMapperLinear(ToneMapper):
@@ -58,9 +67,9 @@ class ToneMapperLinear(ToneMapper):
         self.name = "ToneMapperLinear"
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black_level
-        image.raw_image *= (self.output_white_level - self.output_black_level) / (self.input_white_level - self.input_black_level)
-        image.raw_image += self.output_black_level
+        image -= self.input_black_level
+        image *= (self.output_white_level - self.output_black_level) / (self.input_white_level - self.input_black_level)
+        image += self.output_black_level
 
 
 class ToneMapperLog(ToneMapper):
@@ -75,10 +84,10 @@ class ToneMapperLog(ToneMapper):
         self.name = "ToneMapperLog"
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black_level + 1
-        image.raw_image = np.log(image.raw_image)
-        image.raw_image *= (self.output_white_level - self.output_black_level) / np.log(self.input_white_level - self.input_black_level + 1)
-        image.raw_image += self.output_black_level
+        image -= self.input_black_level + 1
+        image = np.log(image)
+        image *= (self.output_white_level - self.output_black_level) / np.log(self.input_white_level - self.input_black_level + 1)
+        image += self.output_black_level
 
 
 class ToneMapperGammaCorrection(ToneMapper):
@@ -95,8 +104,8 @@ class ToneMapperGammaCorrection(ToneMapper):
         self.gamma = gamma
 
     def _tone_map(self, image):
-        image.raw_image -= self.input_black_level
-        image.raw_image /= self.input_white_level - self.input_black_level
-        image.raw_image **= self.gamma
-        image.raw_image *= self.output_white_level - self.output_black_level
-        image.raw_image += self.output_black_level
+        image -= self.input_black_level
+        image /= self.input_white_level - self.input_black_level
+        image **= self.gamma
+        image *= self.output_white_level - self.output_black_level
+        image += self.output_black_level
