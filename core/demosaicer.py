@@ -72,6 +72,7 @@ class DemosaicerCopy(Demosaicer):
 
     def _demosaice(self, image):
         super()._demosaice(image)
+
         for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
             image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = image.raw_image[color_loc[0]::2, color_loc[1]::2, color_c]
             image.raw_image[abs(color_loc[0] - 1)::2, :, color_c] = image.raw_image[color_loc[0]::2, :, color_c]
@@ -88,13 +89,23 @@ class DemosaicerLinear(Demosaicer):
 
     def _demosaice(self, image):
         super()._demosaice(image)
-        #raw_image.astype(np.float32)
-        #red_kernel = np.array([[0.5, 0, 0.5]])
-        #green_kernel = np.array([[0.0, 0.5, 0.0],
-        #                         [0.5, 0.0, 0.5],
-        #                         [0.0, 0.5, 0.0]])
-        #blue_kernel = red_kernel
-        #raw_image[:, :, 0] = scipy.signal.convolve2d(raw_image[:, :, 0], kernel=red_kernel)
-        #raw_image[:, :, 1] = scipy.signal.convolve2d(raw_image[:, :, 1], kernel=green_kernel)
-        #raw_image[:, :, 2] = scipy.signal.convolve2d(raw_image[:, :, 2], kernel=blue_kernel)
 
+        red_blue_kernel_2 = np.array([[0.5, 0.5]], dtype=np.float32)
+        red_blue_kernel_4 = np.array([[0.25, 0.25],
+                                      [0.25, 0.25]], dtype=np.float32)
+        green_kernel = np.array([[0.0, 0.25, 0.0],
+                                 [0.25, 0.0, 0.25],
+                                 [0.0, 0.25, 0.0]], dtype=np.float32)
+
+        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+            color_src = image.raw_image[color_loc[0]::2, color_loc[1]::2, color_c]
+            image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = \
+                scipy.signal.convolve2d(color_src, red_blue_kernel_2, mode='same')
+            image.raw_image[abs(color_loc[0] - 1)::2, color_loc[1]::2, color_c] = \
+                scipy.signal.convolve2d(color_src, np.transpose(red_blue_kernel_2), mode='same')
+            image.raw_image[abs(color_loc[0] - 1)::2, abs(color_loc[1] - 1)::2, color_c] = \
+                scipy.signal.convolve2d(color_src, red_blue_kernel_4, mode='same')
+
+        green_out = scipy.signal.convolve2d(image.raw_image[:, :, 1], green_kernel, mode='same')
+        for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
+            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = green_out[green_y_loc::2, abs(green_x_loc - 1)::2]

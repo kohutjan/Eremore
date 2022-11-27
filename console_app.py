@@ -7,7 +7,7 @@ import json
 import pprint
 
 from core.loader import LoaderRawPy
-from core.demosaicer import BayerSplitter, DemosaicerCopy
+from core.demosaicer import BayerSplitter, DemosaicerCopy, DemosaicerLinear
 from core.tone_mapper import ToneMapperLinear, ToneMapperLog, ToneMapperGammaCorrection
 from edit.white_balancer import WhiteBalancerWhitePatch, WhiteBalancerGrayWorld
 from edit.rotator import RotatorNumPy90
@@ -25,7 +25,7 @@ def parseargs():
     group_loader.add_argument('--path-to-raw-image', required=True, type=str, help="Path to the RAW image.")
 
     group_demosaicer = parser.add_argument_group('Demosaicer')
-    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy'])
+    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy', 'linear'])
     group_demosaicer.add_argument('--blue-loc', default='1,1', choices=['00', '01', '10', '11'])
 
     group_tone_mapper = parser.add_argument_group('ToneMapper')
@@ -82,6 +82,8 @@ def main():
             demosaicer = BayerSplitter(blue_loc=blue_loc)
         elif args.demosaicer == 'copy':
             demosaicer = DemosaicerCopy(blue_loc=blue_loc)
+        elif args.demosaicer == 'linear':
+            demosaicer = DemosaicerLinear(blue_loc=blue_loc)
         else:
             logger.error(f"Demosaicer {args.demosaicer} does not exist.")
             raise ValueError
