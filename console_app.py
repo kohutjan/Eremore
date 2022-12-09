@@ -24,10 +24,6 @@ def parseargs():
     group_loader.add_argument('--loader', default='rawpy', choices=['rawpy'])
     group_loader.add_argument('--path-to-raw-image', required=True, type=str, help="Path to the RAW image.")
 
-    group_demosaicer = parser.add_argument_group('Demosaicer')
-    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy', 'linear'])
-    group_demosaicer.add_argument('--blue-loc', default='1,1', choices=['00', '01', '10', '11'])
-
     group_tone_mapper = parser.add_argument_group('ToneMapper')
     group_tone_mapper.add_argument('--tone-mapper', choices=['linear', 'log', 'gamma_correction'])
     group_tone_mapper.add_argument('--input-black-level-correction', default=0, type=int)
@@ -37,6 +33,10 @@ def parseargs():
     group_tone_mapper.add_argument('--output-white-level', default=255, type=int)
     group_tone_mapper_gamma_correction = parser.add_argument_group('ToneMapperGammaCorrection')
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
+
+    group_demosaicer = parser.add_argument_group('Demosaicer')
+    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy', 'linear'])
+    group_demosaicer.add_argument('--blue-loc', default='1,1', choices=['00', '01', '10', '11'])
 
     group_white_balancer = parser.add_argument_group('WhiteBalancer')
     group_white_balancer.add_argument('--white-balancer', choices=['camera', 'white_patch', 'gray_world'])
@@ -74,23 +74,6 @@ def main():
     image = loader.load(path_to_raw_image=args.path_to_raw_image)
     # ##################################################################################################################
 
-    # Demosaicer
-    # ##################################################################################################################
-    if args.demosaicer is not None:
-        blue_loc = (int(args.blue_loc[0]), int(args.blue_loc[1]))
-        if args.demosaicer == 'bayer_splitter':
-            demosaicer = BayerSplitter(blue_loc=blue_loc)
-        elif args.demosaicer == 'copy':
-            demosaicer = DemosaicerCopy(blue_loc=blue_loc)
-        elif args.demosaicer == 'linear':
-            demosaicer = DemosaicerLinear(blue_loc=blue_loc)
-        else:
-            logger.error(f"Demosaicer {args.demosaicer} does not exist.")
-            raise ValueError
-
-        demosaicer.demosaice(image)
-    # ##################################################################################################################
-
     # ToneMapper
     # ##################################################################################################################
     if args.tone_mapper is not None:
@@ -118,6 +101,23 @@ def main():
             raise ValueError
 
         tone_mapper.tone_map(image)
+    # ##################################################################################################################
+
+    # Demosaicer
+    # ##################################################################################################################
+    if args.demosaicer is not None:
+        blue_loc = (int(args.blue_loc[0]), int(args.blue_loc[1]))
+        if args.demosaicer == 'bayer_splitter':
+            demosaicer = BayerSplitter(blue_loc=blue_loc)
+        elif args.demosaicer == 'copy':
+            demosaicer = DemosaicerCopy(blue_loc=blue_loc)
+        elif args.demosaicer == 'linear':
+            demosaicer = DemosaicerLinear(blue_loc=blue_loc)
+        else:
+            logger.error(f"Demosaicer {args.demosaicer} does not exist.")
+            raise ValueError
+
+        demosaicer.demosaice(image)
     # ##################################################################################################################
 
     # WhiteBalancer
