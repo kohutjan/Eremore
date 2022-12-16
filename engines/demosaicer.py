@@ -1,10 +1,7 @@
-from abc import ABC, abstractmethod
-
 import logging
 
 import scipy
 import numpy as np
-import numpy.typing as npt
 from typing import Tuple
 
 from helper.get_attributes import get_attributes
@@ -13,9 +10,10 @@ from helper.run_and_measure_time import run_and_measure_time
 from core.image import Image
 
 
-class Demosaicer(ABC):
-    def __init__(self, blue_loc: Tuple[int, int]):
+class Demosaicer:
+    def __init__(self, name: str, blue_loc: Tuple[int, int]):
         self.logger = logging.getLogger(f"eremore.{__name__}")
+        self.name = name
         self.blue_loc = blue_loc
         if self.blue_loc == (0, 0):
             self.red_loc = (1, 1)
@@ -33,13 +31,13 @@ class Demosaicer(ABC):
             self.logger.error(f"Wrong value of blue_loc: {blue_loc}")
             raise ValueError
 
-    def demosaice(self, image: Image):
+    def split_bayer_mask(self, image: Image):
         attributes = get_attributes(self)
         arguments = {'image': image}
-        self.logger.debug(f"Demosaicing with -> attributes: {attributes} | arguments: {arguments}")
-        run_and_measure_time(self._demosaice, arguments, logger=self.logger)
+        self.logger.debug(f"Splitting bayer mask with -> attributes: {attributes} | arguments: {arguments}")
+        run_and_measure_time(self._split_bayer_mask, arguments, logger=self.logger)
 
-    def _demosaice(self, image: Image):
+    def _split_bayer_mask(self, image: Image):
         input_raw_image = image.raw_image
         height, width = input_raw_image.shape
         out_raw_image = np.zeros((height, width, 3), dtype=np.float32)
@@ -53,43 +51,31 @@ class Demosaicer(ABC):
 
         image.raw_image = out_raw_image
 
+    def copy(self, image: Image):
+        attributes = get_attributes(self)
+        arguments = {'image': image}
+        self.logger.debug(f"Demosaicing with copying -> attributes: {attributes} | arguments: {arguments}")
+        run_and_measure_time(self._copy, arguments, logger=self.logger)
 
-class BayerSplitter(Demosaicer):
-    def __init__(self, blue_loc):
-        super().__init__(blue_loc)
-        self.logger = logging.getLogger(f"eremore.{__name__}.bayer_splitter")
-        self.name = "BayerSplitter"
-
-    def _demosaice(self, image):
-        super()._demosaice(image)
-
-
-class DemosaicerCopy(Demosaicer):
-    def __init__(self, blue_loc):
-        super().__init__(blue_loc)
-        self.logger = logging.getLogger(f"eremore.{__name__}.copy")
-        self.name = "DemosaicerCopy"
-
-    def _demosaice(self, image):
-        super()._demosaice(image)
-
+    def _copy(self, image: Image):
+        self._split_bayer_mask(image)
         for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
-            image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = image.raw_image[color_loc[0]::2, color_loc[1]::2, color_c]
+            image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = image.raw_image[color_loc[0]::2,
+                                                                                  color_loc[1]::2, color_c]
             image.raw_image[abs(color_loc[0] - 1)::2, :, color_c] = image.raw_image[color_loc[0]::2, :, color_c]
 
         for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
-            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = image.raw_image[green_y_loc::2, green_x_loc::2, 1]
+            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = image.raw_image[green_y_loc::2,
+                                                                          green_x_loc::2, 1]
 
+    def average(self, image: Image):
+        attributes = get_attributes(self)
+        arguments = {'image': image}
+        self.logger.debug(f"Demosaicing with averaging -> attributes: {attributes} | arguments: {arguments}")
+        run_and_measure_time(self._average, arguments, logger=self.logger)
 
-class DemosaicerLinear(Demosaicer):
-    def __init__(self, blue_loc):
-        super().__init__(blue_loc)
-        self.logger = logging.getLogger(f"eremore.{__name__}.linear")
-        self.name = "DemosaicerLinear"
-
-    def _demosaice(self, image):
-        super()._demosaice(image)
-
+    def _average(self, image: Image):
+        self._split_bayer_mask(image)
         red_blue_kernel_2 = np.array([[0.5, 0.5]], dtype=np.float32)
         red_blue_kernel_4 = np.array([[0.25, 0.25],
                                       [0.25, 0.25]], dtype=np.float32)
@@ -108,4 +94,5 @@ class DemosaicerLinear(Demosaicer):
 
         green_out = scipy.signal.convolve2d(image.raw_image[:, :, 1], green_kernel, mode='same')
         for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
-            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = green_out[green_y_loc::2, abs(green_x_loc - 1)::2]
+            image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = green_out[green_y_loc::2,
+                                                                          abs(green_x_loc - 1)::2]

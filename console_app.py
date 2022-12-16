@@ -1,16 +1,12 @@
-import cv2
-
 import logging
 import argparse
 import sys
-import json
-import pprint
 
 from core.loader import LoaderRawPy
-from core.demosaicer import BayerSplitter, DemosaicerCopy, DemosaicerLinear
-from core.tone_mapper import ToneMapperLinear, ToneMapperLog, ToneMapperGammaCorrection
-from edit.white_balancer import WhiteBalancerCamera, WhiteBalancerWhitePatch, WhiteBalancerGrayWorld
-from edit.rotator import RotatorNumPy90
+from engines.demosaicer import Demosaicer
+from engines.tone_mapper import ToneMapper
+from engines.white_balancer import WhiteBalancer
+from engines.rotator import Rotator
 from core.exporter import ExporterOpenCV
 
 logger = logging.getLogger(f"eremore.{__name__}")
@@ -35,7 +31,7 @@ def parseargs():
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
 
     group_demosaicer = parser.add_argument_group('Demosaicer')
-    group_demosaicer.add_argument('--demosaicer', choices=['bayer_splitter', 'copy', 'linear'])
+    group_demosaicer.add_argument('--demosaicer', choices=['split_bayer_mask', 'copy', 'average'])
     group_demosaicer.add_argument('--blue-loc', default='1,1', choices=['00', '01', '10', '11'])
 
     group_white_balancer = parser.add_argument_group('WhiteBalancer')
@@ -44,8 +40,7 @@ def parseargs():
     group_white_balancer_white_patch.add_argument('--percentile', default=97, type=float)
 
     group_rotator = parser.add_argument_group('Rotator')
-    group_rotator.add_argument('--rotator', choices=['numpy90'])
-    group_rotator.add_argument('--k', type=int)
+    group_rotator.add_argument('--rotate-k', type=int)
 
     group_exporter = parser.add_argument_group('Exporter')
     group_exporter.add_argument('--exporter', default='open_cv', choices=['open_cv'])
@@ -77,75 +72,48 @@ def main():
     # ToneMapper
     # ##################################################################################################################
     if args.tone_mapper is not None:
-        if args.tone_mapper == 'linear':
-            tone_mapper = ToneMapperLinear(input_black_level_correction=args.input_black_level_correction,
-                                           input_black_level=args.input_black_level,
-                                           input_white_level=args.input_white_level,
-                                           output_black_level=args.output_black_level,
-                                           output_white_level=args.output_white_level)
-        elif args.tone_mapper == 'log':
-            tone_mapper = ToneMapperLog(input_black_level_correction=args.input_black_level_correction,
-                                        input_black_level=args.input_black_level,
-                                        input_white_level=args.input_white_level,
-                                        output_black_level=args.output_black_level,
-                                        output_white_level=args.output_white_level)
-        elif args.tone_mapper == 'gamma_correction':
-            tone_mapper = ToneMapperGammaCorrection(input_black_level_correction=args.input_black_level_correction,
-                                                    input_black_level=args.input_black_level,
-                                                    input_white_level=args.input_white_level,
-                                                    output_black_level=args.output_black_level,
-                                                    output_white_level=args.output_white_level,
-                                                    gamma=args.gamma)
-        else:
-            logger.error(f"ToneMapper {args.tone_mapper} does not exists.")
-            raise ValueError
+        tone_mapper = ToneMapper(engine=args.tone_mapper)
+        tone_mapper.engines[tone_mapper.engine].input_black_level_correction = args.input_black_level_correction
+        tone_mapper.engines[tone_mapper.engine].input_black_level = args.input_black_level
+        tone_mapper.engines[tone_mapper.engine].input_white_level = args.input_white_level
+        tone_mapper.engines[tone_mapper.engine].output_black_level = args.output_black_level
+        tone_mapper.engines[tone_mapper.engine].output_white_level = args.output_white_level
 
-        tone_mapper.tone_map(image)
+        tone_mapper.process(image)
     # ##################################################################################################################
 
     # Demosaicer
     # ##################################################################################################################
     if args.demosaicer is not None:
         blue_loc = (int(args.blue_loc[0]), int(args.blue_loc[1]))
-        if args.demosaicer == 'bayer_splitter':
-            demosaicer = BayerSplitter(blue_loc=blue_loc)
+        demosaicer = Demosaicer(name='Demosaicer', blue_loc=blue_loc)
+        if args.demosaicer == 'split_bayer_mask':
+            demosaicer.split_bayer_mask(image)
         elif args.demosaicer == 'copy':
-            demosaicer = DemosaicerCopy(blue_loc=blue_loc)
-        elif args.demosaicer == 'linear':
-            demosaicer = DemosaicerLinear(blue_loc=blue_loc)
+            demosaicer.copy(image)
+        elif args.demosaicer == 'average':
+            demosaicer.average(image)
         else:
-            logger.error(f"Demosaicer {args.demosaicer} does not exist.")
+            logger.error(f"{args.demosaicer} Demosaicer method does not exist.")
             raise ValueError
-
-        demosaicer.demosaice(image)
     # ##################################################################################################################
 
     # WhiteBalancer
     # ##################################################################################################################
     if args.white_balancer is not None:
-        if args.white_balancer == 'camera':
-            white_balancer = WhiteBalancerCamera()
-        elif args.white_balancer == 'white_patch':
-            white_balancer = WhiteBalancerWhitePatch(args.percentile)
-        elif args.white_balancer == 'gray_world':
-            white_balancer = WhiteBalancerGrayWorld()
-        else:
-            logger.error(f"Rotator {args.white_balancer} does not exists.")
-            raise ValueError
+        white_balancer = WhiteBalancer(engine=args.white_balancer)
+        if white_balancer.engine == 'white_patch':
+            white_balancer.engines['white_patch'].percentile = args.percentile
 
-        white_balancer.white_balance(image)
+        white_balancer.process(image)
     # ##################################################################################################################
 
     # Rotator
     # ##################################################################################################################
-    if args.rotator is not None:
-        if args.rotator == 'numpy90':
-            rotator = RotatorNumPy90()
-        else:
-            logger.error(f"Rotator {args.rotator} does not exists.")
-            raise ValueError
+    if args.rotate_k is not None:
+        rotator = Rotator(name="Rotator")
 
-        rotator.rotate_k(image, k=args.k)
+        rotator.rotate_k(image, k=args.rotate_k)
     # ##################################################################################################################
 
     # Exporter
