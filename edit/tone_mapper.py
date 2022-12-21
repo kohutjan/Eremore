@@ -4,6 +4,8 @@ import logging
 
 import numpy as np
 
+from collections import OrderedDict
+
 from helper.get_attributes import get_attributes
 from helper.run_and_measure_time import run_and_measure_time
 
@@ -11,16 +13,18 @@ from core.image import Image
 
 
 class ToneMapper:
-    def __init__(self, name: str = 'tone_mapper', engine: str = 'linear'):
+    def __init__(self, name: str = 'tone_mapper', engine: str = 'none'):
         self.logger = logging.getLogger(f"eremore.{__name__}")
         self.name = name
         self.engine = engine
-        self.engines = {}
+        self.engines = OrderedDict()
         self.engines['linear'] = ToneMapperLinear()
         self.engines['log'] = ToneMapperLog()
         self.engines['gamma_correction'] = ToneMapperGammaCorrection()
 
     def process(self, image: Image):
+        if self.engine == 'none':
+            return
         if self.engine not in self.engines.keys():
             self.logger.error(f"ToneMapper engine {self.engine} does not exists.")
             raise ValueError

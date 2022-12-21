@@ -4,6 +4,8 @@ import logging
 
 import numpy as np
 
+from collections import OrderedDict
+
 from helper.get_attributes import get_attributes
 from helper.run_and_measure_time import run_and_measure_time
 
@@ -11,17 +13,19 @@ from core.image import Image
 
 
 class WhiteBalancer:
-    def __init__(self, name: str = 'white_balancer', engine: str = 'white_patch'):
+    def __init__(self, name: str = 'white_balancer', engine: str = 'none'):
         self.logger = logging.getLogger(f"eremore.{__name__}")
         self.name = name
         self.engine = engine
-        self.engines = {}
+        self.engines = OrderedDict()
         self.engines['rgb_scale'] = WhiteBalancerRGBScale()
         self.engines['camera'] = WhiteBalancerCamera()
         self.engines['white_patch'] = WhiteBalancerWhitePatch()
         self.engines['gray_world'] = WhiteBalancerGrayWorld()
 
     def process(self, image: Image):
+        if self.engine == 'none':
+            return
         if self.engine not in self.engines.keys():
             self.logger.error(f"WhiteBalancer engine {self.engine} does not exists.")
             raise ValueError
@@ -50,7 +54,7 @@ class WhiteBalancerBase(ABC):
 
 
 class WhiteBalancerRGBScale(WhiteBalancerBase):
-    def __init__(self, name='rgb_scale', r_scale=1, g_scale=1, b_scale=1, normalize=False):
+    def __init__(self, name='rgb_scale', r_scale: float = 1, g_scale: float = 1, b_scale: float = 1, normalize=False):
         super().__init__()
         self.logger = logging.getLogger(f"eremore.{__name__}.{name}")
         self.name = name
@@ -91,7 +95,7 @@ class WhiteBalancerCamera(WhiteBalancerRGBScale):
 
 
 class WhiteBalancerWhitePatch(WhiteBalancerRGBScale):
-    def __init__(self, name='white_patch', percentile=0.97):
+    def __init__(self, name='white_patch', percentile: float = 0.97):
         super().__init__(normalize=True)
         self.logger = logging.getLogger(f"eremore.{__name__}.{name}")
         self.name = name
