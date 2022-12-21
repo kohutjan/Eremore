@@ -2,13 +2,15 @@ import logging
 import argparse
 import sys
 
+from functools import partial
+
 from core.loader import LoaderRawPy
 from edit.editor import Editor
 from edit.demosaicer import Demosaicer
 from edit.tone_mapper import ToneMapper
 from edit.white_balancer import WhiteBalancer
 from edit.rotator import Rotator
-from core.exporter import ExporterOpenCV
+from core.exporter import Exporter
 
 logger = logging.getLogger(f"eremore.{__name__}")
 
@@ -17,17 +19,20 @@ def parseargs():
     print(' '.join(sys.argv))
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--input-magnitude', default=2**14, type=int)
+    parser.add_argument('--input-black-level', default=0, type=int)
+    parser.add_argument('--input-white-level', default=2**12-1, type=int)
+    parser.add_argument('--output-black-level', default=0, type=int)
+    parser.add_argument('--output-white-level', default=255, type=int)
+
     group_loader = parser.add_argument_group('Loader')
     group_loader.add_argument('--loader', default='rawpy', choices=['rawpy'])
     group_loader.add_argument('--path-to-raw-image', required=True, type=str, help="Path to the RAW image.")
 
     group_tone_mapper = parser.add_argument_group('ToneMapper')
-    group_tone_mapper.add_argument('--tone-mapper', choices=['linear', 'log', 'gamma_correction'])
+    group_tone_mapper.add_argument('--tone-mapper', choices=['linear', 'gamma_correction'])
     group_tone_mapper.add_argument('--input-black-level-correction', default=0, type=int)
-    group_tone_mapper.add_argument('--input-black-level', default=0, type=int)
-    group_tone_mapper.add_argument('--input-white-level', default=2**14-1, type=int)
-    group_tone_mapper.add_argument('--output-black-level', default=0, type=int)
-    group_tone_mapper.add_argument('--output-white-level', default=255, type=int)
+
     group_tone_mapper_gamma_correction = parser.add_argument_group('ToneMapperGammaCorrection')
     group_tone_mapper_gamma_correction.add_argument('--gamma', default=1, type=float)
 
@@ -77,13 +82,19 @@ def main():
     # ##################################################################################################################
     if args.tone_mapper is not None:
         tone_mapper = ToneMapper(engine=args.tone_mapper)
+        tone_mapper.engines[tone_mapper.engine].input_magnitude = args.input_magnitude
         tone_mapper.engines[tone_mapper.engine].input_black_level_correction = args.input_black_level_correction
         tone_mapper.engines[tone_mapper.engine].input_black_level = args.input_black_level
         tone_mapper.engines[tone_mapper.engine].input_white_level = args.input_white_level
-        tone_mapper.engines[tone_mapper.engine].output_black_level = args.output_black_level
-        tone_mapper.engines[tone_mapper.engine].output_white_level = args.output_white_level
+        tone_mapper_set = partial(tone_mapper.engines[tone_mapper.engine].set,
+                                  input_magnitude=args.input_magnitude,
+                                  input_black_level_correction=args.input_black_level_correction,
+                                  input_black_level=args.input_black_level,
+                                  input_white_level=args.input_white_level)
         if tone_mapper.engine == 'gamma_correction':
-            tone_mapper.engines['gamma_correction'].gamma = args.gamma
+            tone_mapper_set(gamma=args.gamma)
+        else:
+            tone_mapper_set()
 
         editor.add_engine(tone_mapper)
         editor.register_engine_for_update(tone_mapper.name)
@@ -104,6 +115,9 @@ def main():
     # ##################################################################################################################
     if args.white_balancer is not None:
         white_balancer = WhiteBalancer(engine=args.white_balancer)
+        white_balancer.engines[white_balancer.engine].input_magnitude = args.input_magnitude
+        white_balancer.engines[white_balancer.engine].input_black_level = args.input_black_level
+        white_balancer.engines[white_balancer.engine].input_white_level = args.input_white_level
         if white_balancer.engine == 'white_patch':
             white_balancer.engines['white_patch'].percentile = args.percentile
 
@@ -126,13 +140,15 @@ def main():
 
     # Exporter
     # ##################################################################################################################
-    if args.exporter == 'open_cv':
-        exporter = ExporterOpenCV()
-    else:
-        logger.error(f"Exporter {args.exporter} does not exists.")
-        raise ValueError
+    exporter = Exporter(engine=args.exporter)
+    exporter.engines[exporter.engine].input_magnitude = args.input_magnitude
+    exporter.engines[exporter.engine].input_black_level = args.input_black_level
+    exporter.engines[exporter.engine].input_white_level = args.input_white_level
+    exporter.engines[exporter.engine].output_black_level = args.output_black_level
+    exporter.engines[exporter.engine].output_white_level = args.output_white_level
+    exporter.engines[exporter.engine].path_to_export_image = args.path_to_export_image
 
-    exporter.export(editor.output_image, path_to_export_image=args.path_to_export_image)
+    exporter.process(editor.output_image)
     # ##################################################################################################################
 
 

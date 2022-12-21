@@ -13,7 +13,7 @@ from core.image import Image
 
 
 class Rotator:
-    def __init__(self, name: str = 'rotator', engine: str = 'none'):
+    def __init__(self, name: str = 'rotator', engine: str = None):
         self.logger = logging.getLogger(f"eremore.{__name__}")
         self.name = name
         self.engine = engine
@@ -21,7 +21,7 @@ class Rotator:
         self.engines['90'] = Rotator90()
 
     def process(self, image: Image):
-        if self.engine == 'none':
+        if self.engine is None:
             return
         if self.engine not in self.engines.keys():
             self.logger.error(f"Rotator engine {self.engine} does not exists.")

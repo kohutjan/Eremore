@@ -15,7 +15,7 @@ from core.image import Image
 
 
 class Demosaicer:
-    def __init__(self, name: str = 'demosaicer', engine: str = 'none'):
+    def __init__(self, name: str = 'demosaicer', engine: str = None):
         self.logger = logging.getLogger(f"eremore.{__name__}")
         self.name = name
         self.engine = engine
@@ -25,7 +25,7 @@ class Demosaicer:
         self.engines['linear'] = DemosaicerLinear()
 
     def process(self, image: Image):
-        if self.engine == 'none':
+        if self.engine is None:
             return
         if self.engine not in self.engines.keys():
             self.logger.error(f"Demosaicer engine {self.engine} does not exists.")
@@ -72,7 +72,7 @@ class BayerSplitter(DemosaicerBase):
     def _demosaice(self, image: Image):
         input_raw_image = image.raw_image
         height, width = input_raw_image.shape
-        out_raw_image = np.zeros((height, width, 3), dtype=np.float32)
+        out_raw_image = np.zeros((height, width, 3), dtype=np.uint16)
 
         for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
             out_raw_image[color_loc[0]::2, color_loc[1]::2, color_c] = input_raw_image[color_loc[0]::2,
@@ -113,6 +113,7 @@ class DemosaicerLinear(BayerSplitter):
 
     def _demosaice(self, image: Image):
         super()._demosaice(image)
+        image.raw_image = image.raw_image.astype(dtype=np.float32)
         red_blue_kernel_2 = np.array([[0.5, 0.5]], dtype=np.float32)
         red_blue_kernel_4 = np.array([[0.25, 0.25],
                                       [0.25, 0.25]], dtype=np.float32)
@@ -133,3 +134,4 @@ class DemosaicerLinear(BayerSplitter):
         for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
             image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = green_out[green_y_loc::2,
                                                                                     abs(green_x_loc - 1)::2]
+        image.raw_image = image.raw_image.astype(dtype=np.uint16)
