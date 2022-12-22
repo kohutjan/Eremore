@@ -35,12 +35,16 @@ class ToneMapperBase(ABC):
     def __init__(self,
                  input_magnitude: int = 2**14,
                  input_black_level_correction: int = 512,
-                 input_black_level: int = 0, input_white_level: int = 2**12-1):
+                 input_black_level: int = 0, input_white_level: int = 2**12-1,
+                 output_black_level: int = 0, output_white_level: int = 2**12-1):
         self.logger = logging.getLogger(f"eremore.{__name__}")
+        self.name = None
         self.input_magnitude = input_magnitude
         self.input_black_level_correction = input_black_level_correction
         self.input_black_level = input_black_level
         self.input_white_level = input_white_level
+        self.output_black_level = output_black_level
+        self.output_white_level = output_white_level
         self._tone_mapping_table = None
 
     def tone_map(self, image: Image):
@@ -50,6 +54,8 @@ class ToneMapperBase(ABC):
         run_and_measure_time(self._tone_map_wrapper, arguments, logger=self.logger)
 
     def _tone_map_wrapper(self, image: Image):
+        if self._tone_mapping_table is None:
+            self._update_tone_mapping_table()
         image.raw_image = self._tone_mapping_table[image.raw_image]
         self._tone_map_camera_white_balance(image)
 
@@ -73,17 +79,28 @@ class ToneMapperBase(ABC):
     def _update_tone_mapping_table(self):
         self._tone_mapping_table = self._get_tone_mapping_table()
 
-    def set(self, input_magnitude=None,
+    def set(self,
+            name=None,
+            input_magnitude=None,
             input_black_level_correction=None,
-            input_black_level=None, input_white_level=None):
-        self._set(input_magnitude,
+            input_black_level=None, input_white_level=None,
+            output_black_level=None, output_white_level=None):
+        self._set(name,
+                  input_magnitude,
                   input_black_level_correction,
-                  input_black_level, input_white_level)
+                  input_black_level, input_white_level,
+                  output_black_level, output_white_level)
         self._update_tone_mapping_table()
 
-    def _set(self, input_magnitude=None,
+    def _set(self,
+             name=None,
+             input_magnitude=None,
              input_black_level_correction=None,
-             input_black_level=None, input_white_level=None):
+             input_black_level=None, input_white_level=None,
+             output_black_level=None, output_white_level=None):
+        if name is not None:
+            self.name = name
+            self.logger = logging.getLogger(f"eremore.{__name__}.{name}")
         if input_magnitude is not None:
             self.input_magnitude = input_magnitude
         if input_black_level_correction is not None:
@@ -92,6 +109,10 @@ class ToneMapperBase(ABC):
             self.input_black_level = input_black_level
         if input_white_level is not None:
             self.input_white_level = input_white_level
+        if output_black_level is not None:
+            self.output_black_level = output_black_level
+        if output_white_level is not None:
+            self.output_white_level = output_white_level
 
 
 class ToneMapperLinear(ToneMapperBase):
@@ -101,7 +122,11 @@ class ToneMapperLinear(ToneMapperBase):
         self.name = name
 
     def _tone_map(self, tone_mapping_table):
-        tone_mapping_table -= self.input_black_level
+        scale = (self.output_white_level - self.output_black_level) / (self.input_white_level - self.input_black_level)
+        if scale != 1:
+            tone_mapping_table -= self.input_black_level
+            tone_mapping_table *= scale
+            tone_mapping_table += self.output_black_level
         return tone_mapping_table
 
 
@@ -116,16 +141,22 @@ class ToneMapperGammaCorrection(ToneMapperBase):
         tone_mapping_table -= self.input_black_level
         tone_mapping_table /= self.input_white_level - self.input_black_level
         tone_mapping_table **= self.gamma
-        tone_mapping_table *= self.input_white_level - self.input_black_level
+        tone_mapping_table *= self.output_white_level - self.output_black_level
+        tone_mapping_table += self.output_black_level
         return tone_mapping_table
 
-    def set(self, input_magnitude=None,
+    def set(self,
+            name=None,
+            input_magnitude=None,
             input_black_level_correction=None,
             input_black_level=None, input_white_level=None,
+            output_black_level=None, output_white_level=None,
             gamma=None):
-        super()._set(input_magnitude,
+        super()._set(name,
+                     input_magnitude,
                      input_black_level_correction,
-                     input_black_level, input_white_level)
+                     input_black_level, input_white_level,
+                     output_black_level, output_white_level)
         if gamma is not None:
             self.gamma = gamma
         self._update_tone_mapping_table()

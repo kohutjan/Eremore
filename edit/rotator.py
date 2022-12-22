@@ -33,6 +33,7 @@ class Rotator:
 class RotatorBase(ABC):
     def __init__(self):
         self.logger = logging.getLogger(f"eremore.{__name__}")
+        self.name = None
 
     def rotate(self, image: Image):
         attributes = get_attributes(self)
@@ -44,6 +45,14 @@ class RotatorBase(ABC):
     def _rotate(self, image: Image):
         pass
 
+    def set(self, name=None):
+        self._set(name)
+
+    def _set(self, name=None):
+        if name is not None:
+            self.name = name
+            self.logger = logging.getLogger(f"eremore.{__name__}.{name}")
+
 
 class Rotator90(RotatorBase):
     def __init__(self, name='rotator_90', k: int = 1):
@@ -54,3 +63,8 @@ class Rotator90(RotatorBase):
 
     def _rotate(self, image: Image):
         image.raw_image = np.rot90(image.raw_image, self.k)
+
+    def set(self, name=None, k=None):
+        super()._set(name)
+        if k is not None:
+            self.k = k

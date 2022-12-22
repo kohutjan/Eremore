@@ -37,19 +37,20 @@ class Demosaicer:
 class DemosaicerBase(ABC):
     def __init__(self, blue_loc: Tuple[int, int] = (1, 1)):
         self.logger = logging.getLogger(f"eremore.{__name__}")
+        self.name = None
         self.blue_loc = blue_loc
         if self.blue_loc == (0, 0):
-            self.red_loc = (1, 1)
-            self.green_x_loc = (1, 0)
+            self._red_loc = (1, 1)
+            self._green_x_loc = (1, 0)
         elif self.blue_loc == (0, 1):
-            self.red_loc = (1, 0)
-            self.green_x_loc = (0, 1)
+            self._red_loc = (1, 0)
+            self._green_x_loc = (0, 1)
         elif self.blue_loc == (1, 0):
-            self.red_loc = (0, 1)
-            self.green_x_loc = (0, 1)
+            self._red_loc = (0, 1)
+            self._green_x_loc = (0, 1)
         elif self.blue_loc == (1, 1):
-            self.red_loc = (0, 0)
-            self.green_x_loc = (1, 0)
+            self._red_loc = (0, 0)
+            self._green_x_loc = (1, 0)
         else:
             self.logger.error(f"Wrong value of blue_loc: {blue_loc}")
             raise ValueError
@@ -64,6 +65,16 @@ class DemosaicerBase(ABC):
     def _demosaice(self, image: Image):
         pass
 
+    def set(self, name=None, blue_loc=None):
+        self._set(name, blue_loc)
+
+    def _set(self, name=None, blue_loc=None):
+        if name is not None:
+            self.name = name
+            self.logger = logging.getLogger(f"eremore.{__name__}.{name}")
+        if blue_loc is not None:
+            self.blue_loc = blue_loc
+
 
 class BayerSplitter(DemosaicerBase):
     def __init__(self):
@@ -74,12 +85,12 @@ class BayerSplitter(DemosaicerBase):
         height, width = input_raw_image.shape
         out_raw_image = np.zeros((height, width, 3), dtype=np.uint16)
 
-        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+        for color_loc, color_c in zip((self._red_loc, self.blue_loc), (0, 2)):
             out_raw_image[color_loc[0]::2, color_loc[1]::2, color_c] = input_raw_image[color_loc[0]::2,
                                                                        color_loc[1]::2]
         for i in range(2):
-            out_raw_image[i::2, self.green_x_loc[i]::2, 1] = input_raw_image[i::2,
-                                                             self.green_x_loc[i]::2]
+            out_raw_image[i::2, self._green_x_loc[i]::2, 1] = input_raw_image[i::2,
+                                                              self._green_x_loc[i]::2]
 
         image.raw_image = out_raw_image
 
@@ -92,14 +103,14 @@ class DemosaicerCopy(BayerSplitter):
 
     def _demosaice(self, image: Image):
         super()._demosaice(image)
-        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+        for color_loc, color_c in zip((self._red_loc, self.blue_loc), (0, 2)):
             image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = image.raw_image[color_loc[0]::2,
                                                                                                   color_loc[1]::2,
                                                                                                   color_c]
             image.raw_image[abs(color_loc[0] - 1)::2, :, color_c] = image.raw_image[color_loc[0]::2,
                                                                                     :,
                                                                                     color_c]
-        for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
+        for green_y_loc, green_x_loc in enumerate(self._green_x_loc):
             image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = image.raw_image[green_y_loc::2,
                                                                                           green_x_loc::2,
                                                                                           1]
@@ -121,7 +132,7 @@ class DemosaicerLinear(BayerSplitter):
                                  [0.25, 0.0, 0.25],
                                  [0.0, 0.25, 0.0]], dtype=np.float32)
 
-        for color_loc, color_c in zip((self.red_loc, self.blue_loc), (0, 2)):
+        for color_loc, color_c in zip((self._red_loc, self.blue_loc), (0, 2)):
             color_src = image.raw_image[color_loc[0]::2, color_loc[1]::2, color_c]
             image.raw_image[color_loc[0]::2, abs(color_loc[1] - 1)::2, color_c] = \
                 scipy.signal.convolve2d(color_src, red_blue_kernel_2, mode='same')
@@ -131,7 +142,7 @@ class DemosaicerLinear(BayerSplitter):
                 scipy.signal.convolve2d(color_src, red_blue_kernel_4, mode='same')
 
         green_out = scipy.signal.convolve2d(image.raw_image[:, :, 1], green_kernel, mode='same')
-        for green_y_loc, green_x_loc in enumerate(self.green_x_loc):
+        for green_y_loc, green_x_loc in enumerate(self._green_x_loc):
             image.raw_image[green_y_loc::2, abs(green_x_loc - 1)::2, 1] = green_out[green_y_loc::2,
                                                                                     abs(green_x_loc - 1)::2]
         image.raw_image = image.raw_image.astype(dtype=np.uint16)
